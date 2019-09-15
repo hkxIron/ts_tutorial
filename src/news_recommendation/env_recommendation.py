@@ -26,6 +26,7 @@ class NewsRecommendation(Environment):
     self.theta_std = theta_std
     
     # generating the true parameters
+    # thetas:[arm, dim, dim]
     self.thetas = [self.theta_mean + self.theta_std*np.random.randn(self.dim) 
                                             for _ in range(self.num_articles)]
     

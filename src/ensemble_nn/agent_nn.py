@@ -49,11 +49,12 @@ class TwoLayerNNEpsilonGreedy(Agent):
       lr_decay: decay learning rate.
       leaky_coeff: slope of "negative" part of the Leaky ReLU.
     """
-
+    # [hidden, input_dim]
     self.W1 = 1e-2 * rd.randn(hidden_dim, input_dim)  # initialize weights
+    # [hidden,1]
     self.W2 = 1e-2 * rd.randn(hidden_dim)
 
-    self.actions = actions
+    self.actions = actions # [arms, dim]
     self.num_actions = len(actions)
     self.T = time_horizon
     self.prior_var = prior_var
@@ -65,8 +66,9 @@ class TwoLayerNNEpsilonGreedy(Agent):
     self.batch_size = batch_size
     self.lr_decay = lr_decay
     self.leaky_coeff = leaky_coeff
-
+    # action:[T, input_dim]
     self.action_hist = np.zeros((self.T, input_dim))
+    # reward:[T, 1]
     self.reward_hist = np.zeros(self.T)
 
   def _model_forward(self, input_actions):
@@ -79,6 +81,10 @@ class TwoLayerNNEpsilonGreedy(Agent):
       out: network prediction.
       cache: tuple holding intermediate activations for backprop.
     """
+    # affine_out = X*W
+    # input_actions:[batch, input_dim]
+    # W1:[hidden, input_dim]
+    # 此处代码写得太晦涩了, affine = input_actions*(W1.T), 即 affine = inputa_actions@(W1.T)
     affine_out = np.sum(input_actions[:, np.newaxis, :] * self.W1, axis=2)
     relu_out = np.maximum(self.leaky_coeff * affine_out, affine_out)
     out = np.sum(relu_out * self.W2, axis=1)
@@ -111,6 +117,8 @@ class TwoLayerNNEpsilonGreedy(Agent):
     for i in range(self.num_gradient_steps):
       # sample minibatch
       batch_ind = rd.randint(t + 1, size=self.batch_size)
+      # action_hist:[T, input_dim]
+      # action_batch:[batch_ind, input_dim]
       action_batch = self.action_hist[batch_ind]
       reward_batch = self.reward_hist[batch_ind]
 
@@ -118,9 +126,9 @@ class TwoLayerNNEpsilonGreedy(Agent):
       dW1, dW2 = self._model_backward(out, cache, reward_batch)
       dW1 /= self.batch_size
       dW2 /= self.batch_size
-      dW1 += 2 / (self.prior_var * (t + 1)) * self.W1
+      dW1 += 2 / (self.prior_var * (t + 1)) * self.W1 # 加上L2正则
       dW2 += 2 / (self.prior_var * (t + 1)) * self.W2
-
+      # 更新梯度
       self.W1 -= self.lr * dW1
       self.W2 -= self.lr * dW2
 
@@ -152,6 +160,7 @@ class TwoLayerNNEpsilonGreedyAnnealing(TwoLayerNNEpsilonGreedy):
   def pick_action(self, observation):
     """Overload pick_action to dynamically recalculate epsilon-greedy."""
     t = observation
+    # t越大,epsilon越小
     epsilon = self.epsilon_param / (self.epsilon_param + t)
     u = rd.rand()
     if u < epsilon:
@@ -228,6 +237,8 @@ class TwoLayerNNDropout(TwoLayerNNEpsilonGreedy):
       out: network prediction.
       cache: tuple holding intermediate activations for backprop.
     """
+    # W1:[hidden, input]
+    # input_action:[arm, input]
     affine_out = np.sum(input_actions[:, np.newaxis, :] * self.W1, axis=2)
     relu_out = np.maximum(self.leaky_coeff * affine_out, affine_out)
     dropout_mask = rd.rand(*relu_out.shape) > self.p
@@ -299,17 +310,18 @@ class TwoLayerNNEnsembleSampling(Agent):
       lr_decay: decay learning rate.
       leaky_coeff: slope of "negative" part of the Leaky ReLU.
     """
-
+    # 同时训练M个模型
     self.M = num_models
 
     # initialize models by sampling perturbed prior means
-    self.W1_model_prior = np.sqrt(prior_var) * rd.randn(self.M, hidden_dim,
-                                                        input_dim)
+    # W1_model_prior: [M, hidden_dim, input_dim]
+    self.W1_model_prior = np.sqrt(prior_var) * rd.randn(self.M, hidden_dim, input_dim)
+    # W2_model_prior: [M, hidden_dim]
     self.W2_model_prior = np.sqrt(prior_var) * rd.randn(self.M, hidden_dim)
     self.W1 = np.copy(self.W1_model_prior)
     self.W2 = np.copy(self.W2_model_prior)
 
-    self.actions = actions
+    self.actions = actions # [arm, dim]
     self.num_actions = len(actions)
     self.T = time_horizon
     self.prior_var = prior_var
@@ -321,7 +333,7 @@ class TwoLayerNNEnsembleSampling(Agent):
     self.leaky_coeff = leaky_coeff
 
     self.action_hist = np.zeros((self.T, input_dim))
-    self.model_reward_hist = np.zeros((self.M, self.T))
+    self.model_reward_hist = np.zeros((self.M, self.T)) # 每个模型在第T个样本中的reward
 
   def _model_forward(self, m, input_actions):
     """Neural network forward pass for single model of ensemble.
@@ -391,9 +403,9 @@ class TwoLayerNNEnsembleSampling(Agent):
     """
     t = observation
     self.action_hist[t] = self.actions[action]
-
+    # 同时更新所有的模型
     for m in range(self.M):
-      m_noise = np.sqrt(self.noise_var) * rd.randn()
+      m_noise = np.sqrt(self.noise_var) * rd.randn() #正态分布噪声
       self.model_reward_hist[m, t] = reward + m_noise
       self._update_model(m, t)
 
@@ -404,7 +416,7 @@ class TwoLayerNNEnsembleSampling(Agent):
 
     Choose active network uniformly at random, then act greedily wrt that model.
     """
-    m = rd.randint(self.M)
+    m = rd.randint(self.M) # 随机选一个模型进行预测
     model_out, _ = self._model_forward(m, self.actions)
     action = np.argmax(model_out)
     return action
