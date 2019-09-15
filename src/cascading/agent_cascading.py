@@ -26,19 +26,20 @@ class CascadingBanditEpsilonGreedy(Agent):
     self.num_positions = num_positions
     self.a0 = a0
     self.b0 = b0
-    self.prior_success = np.array([a0 for item in range(num_items)])
-    self.prior_failure = np.array([b0 for item in range(num_items)])
+    self.prior_success = np.array([a0 for item in range(num_items)]) # [arm, 1]
+    self.prior_failure = np.array([b0 for item in range(num_items)]) # [arm, 1]
     self.epsilon = epsilon
     self.timestep = 1
 
   def set_prior(self, prior_success, prior_failure):
     # Overwrite the default prior
-    self.prior_success = np.array(prior_success)
-    self.prior_failure = np.array(prior_failure)
+    self.prior_success = np.array(prior_success) # [arm, 1]
+    self.prior_failure = np.array(prior_failure) # [arm, 1]
 
   def get_posterior_mean(self):
     return self.prior_success / (self.prior_success + self.prior_failure)
 
+  # 采样
   def get_posterior_sample(self):
     return np.random.beta(self.prior_success, self.prior_failure)
 
@@ -60,11 +61,12 @@ class CascadingBanditEpsilonGreedy(Agent):
     self.timestep += 1
 
   def pick_action(self, observation):
+    # 从0~num_items个物品中采样 num_positions个用于展示
     if np.random.rand() < self.epsilon:
-      action_list = np.random.randint(
-          low=0, high=self.num_items, size=self.num_positions)
+      action_list = np.random.randint(low=0, high=self.num_items, size=self.num_positions)
     else:
-      posterior_means = self.get_posterior_mean()
+      # 选取最优值
+      posterior_means = self.get_posterior_mean() # [arm, 1]
       action_list = posterior_means.argsort()[::-1][:self.num_positions]
     return action_list
 
@@ -87,12 +89,14 @@ def _ucb_1(empirical_mean, timestep, count):
 class CascadingBanditUCB1(CascadingBanditEpsilonGreedy):
 
   def pick_action(self, observation):
+    # 获取后验概率
     posterior_means = self.get_posterior_mean()
     ucb_values = np.zeros(self.num_items)
     for item in range(self.num_items):
-      count = self.prior_success[item] + self.prior_failure[item]
+      count = self.prior_success[item] + self.prior_failure[item] # 当前action被访问的次数
       ucb_values[item] = _ucb_1(posterior_means[item], self.timestep, count)
 
+    # 选择ucb最大的k个arm
     action_list = ucb_values.argsort()[::-1][:self.num_positions]
     return action_list
 
@@ -101,7 +105,8 @@ class CascadingBanditUCB1(CascadingBanditEpsilonGreedy):
 
 
 def _kl_ucb(empirical_mean, timestep, count, tolerance=1e-3, maxiter=25):
-  """Computes KL-UCB via binary search
+  """Computes KL-UCB via binary search(二分查找)
+  从 emprical_mean右边开查找第一个大于kl_bound的点
 
   Args:
     empirical_mean - empirical mean
@@ -122,9 +127,9 @@ def _kl_ucb(empirical_mean, timestep, count, tolerance=1e-3, maxiter=25):
     dist = _d_kl(empirical_mean, midpoint)
 
     if dist < kl_bound:
-      lower_bound = midpoint
+      lower_bound = midpoint # 向右查找
     else:
-      upper_bound = midpoint
+      upper_bound = midpoint # 向左查找
 
     if n_iter > maxiter:
       print(
@@ -134,15 +139,17 @@ def _kl_ucb(empirical_mean, timestep, count, tolerance=1e-3, maxiter=25):
 
   return lower_bound
 
-
+# 计算kl距离
 def _d_kl(p, q, epsilon=1e-6):
-  """Compute the KL divergence for single numbers."""
-  if p <= epsilon:
+  """Compute the KL divergence for single numbers.
+  KL(p||q) = plog(p/q)+(1-p)log((1-p)/(1-q))
+  """
+  if p <= epsilon: # p太小,则为0, limit 0log0 = 0
     A = 0
-  else:
+  else: # p不小,但q太小,则为inf
     A = np.inf if q <= epsilon else p * np.log(p / q)
 
-  if p >= 1 - epsilon:
+  if p >= 1 - epsilon: # p太大,则为0
     B = 0
   else:
     B = np.inf if q >= 1 - epsilon else (1 - p) * np.log((1 - p) / (1 - q))
@@ -153,9 +160,10 @@ def _d_kl(p, q, epsilon=1e-6):
 class CascadingBanditKLUCB(CascadingBanditEpsilonGreedy):
 
   def pick_action(self, observation):
-    posterior_means = self.get_posterior_mean()
-    ucb_values = np.zeros(self.num_items)
+    posterior_means = self.get_posterior_mean() # [arm, 1]
+    ucb_values = np.zeros(self.num_items) # [arm, 1]
     for item in range(self.num_items):
+      # 展示次数
       count = self.prior_success[item] + self.prior_failure[item]
       ucb_values[item] = _kl_ucb(posterior_means[item], self.timestep, count)
 
@@ -169,6 +177,6 @@ class CascadingBanditKLUCB(CascadingBanditEpsilonGreedy):
 class CascadingBanditTS(CascadingBanditEpsilonGreedy):
 
   def pick_action(self, observation):
-    posterior_sample = self.get_posterior_sample()
+    posterior_sample = self.get_posterior_sample() # [arm, 1]
     action_list = posterior_sample.argsort()[::-1][:self.num_positions]
     return action_list

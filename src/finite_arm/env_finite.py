@@ -21,15 +21,18 @@ class FiniteArmedBernoulliBandit(Environment):
     self.optimal_reward = np.max(self.probs)
     self.n_arm = len(self.probs)
 
+  # 返回arm的个数
   def get_observation(self):
     return self.n_arm
 
   def get_optimal_reward(self):
     return self.optimal_reward
 
+  # 返回某个action的reward
   def get_expected_reward(self, action):
     return self.probs[action]
 
+  # 对于二项分布,返回一个随机reward
   def get_stochastic_reward(self, action):
     return np.random.binomial(1, self.probs[action])
 
@@ -41,8 +44,10 @@ class DriftingFiniteArmedBernoulliBandit(FiniteArmedBernoulliBandit):
   """N-armed bandit with drift.
 
   Note that this code does not generate a specific fixed bandit environemnt.
+
   Instead we simulate a draw from the Bayesian prior online, this is done to
   show a simple example where the prior/posterior computations are conjugate.
+  即只有先验与后验分布共轭时
 
   gamma = 0 will allow us to do resampling without drift.
   """
@@ -51,7 +56,7 @@ class DriftingFiniteArmedBernoulliBandit(FiniteArmedBernoulliBandit):
     self.n_arm = n_arm
     self.a0 = a0
     self.b0 = b0
-    self.prior_success = np.array([a0 for a in range(n_arm)])
+    self.prior_success = np.array([a0 for a in range(n_arm)]) # [arm, 1]
     self.prior_failure = np.array([b0 for a in range(n_arm)])
     self.gamma = gamma
     self.probs = np.array([np.random.beta(a0, b0) for a in range(n_arm)])
@@ -66,15 +71,14 @@ class DriftingFiniteArmedBernoulliBandit(FiniteArmedBernoulliBandit):
 
   def advance(self, action, reward):
     # All arms drift back to mixing distribution at rate gamma
-    self.prior_success = self.prior_success * (
-        1 - self.gamma) + self.a0 * self.gamma
-    self.prior_failure = self.prior_failure * (
-        1 - self.gamma) + self.b0 * self.gamma
+    self.prior_success = self.prior_success * ( 1 - self.gamma) + self.a0 * self.gamma
+    self.prior_failure = self.prior_failure * ( 1 - self.gamma) + self.b0 * self.gamma
 
     # Sampled arm has some learning
     self.prior_success[action] += reward
     self.prior_failure[action] += 1 - reward
 
+    # 从融合后的参数中进行采样
     # Resample posterior probabilities
     self.probs = np.array([
         np.random.beta(self.prior_success[a], self.prior_failure[a])

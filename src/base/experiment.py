@@ -37,7 +37,7 @@ class BaseExperiment(object):
     self.rec_freq = rec_freq
 
 
-  def run_step_maybe_log(self, t):
+  def run_step_maybe_log(self, timestep):
     # Evolve the bandit (potentially contextual) for one step and pick action
     observation = self.environment.get_observation()
     action = self.agent.pick_action(observation)
@@ -51,14 +51,14 @@ class BaseExperiment(object):
     self.agent.update_observation(observation, action, reward)
 
     # Log whatever we need for the plots we will want to use.
-    instant_regret = optimal_reward - expected_reward
+    instant_regret = optimal_reward - expected_reward # 计算时间t的悔界
     self.cum_regret += instant_regret
 
     # Advance the environment (used in nonstationary experiment)
     self.environment.advance(action, reward)
 
-    if (t + 1) % self.rec_freq == 0:
-      self.data_dict = {'t': (t + 1),
+    if (timestep + 1) % self.rec_freq == 0:
+      self.data_dict = {'t': (timestep + 1),
                         'instant_regret': instant_regret,
                         'cum_regret': self.cum_regret,
                         'action': action,
@@ -82,8 +82,8 @@ class BaseExperiment(object):
 
 
 class ExperimentWithMean(BaseExperiment):
-
-  def run_step_maybe_log(self, t):
+  # 与base中的没有什么区别啊
+  def run_step_maybe_log(self, timestep):
     # Evolve the bandit (potentially contextual) for one step and pick action
     observation = self.environment.get_observation()
     action = self.agent.pick_action(observation)
@@ -103,8 +103,8 @@ class ExperimentWithMean(BaseExperiment):
     # Advance the environment (used in nonstationary experiment)
     self.environment.advance(action, reward)
 
-    if (t + 1) % self.rec_freq == 0:
-      self.data_dict = {'t': (t + 1),
+    if (timestep + 1) % self.rec_freq == 0:
+      self.data_dict = {'t': (timestep + 1),
                         'instant_regret': instant_regret,
                         'cum_regret': self.cum_regret,
                         'posterior_mean': self.agent.get_posterior_mean(),
@@ -117,7 +117,7 @@ class ExperimentWithMean(BaseExperiment):
 
 class ExperimentNoAction(BaseExperiment):
 
-  def run_step_maybe_log(self, t):
+  def run_step_maybe_log(self, timestep):
     # Evolve the bandit (potentially contextual) for one step and pick action
     observation = self.environment.get_observation()
     action = self.agent.pick_action(observation)
@@ -138,8 +138,8 @@ class ExperimentNoAction(BaseExperiment):
     # Advance the environment (used in nonstationary experiment)
     self.environment.advance(action, reward)
 
-    if (t + 1) % self.rec_freq == 0:
-      self.data_dict = {'t': (t + 1),
+    if (timestep + 1) % self.rec_freq == 0:
+      self.data_dict = {'t': (timestep + 1),
                         'instant_regret': instant_regret,
                         'cum_regret': self.cum_regret,
                         'cum_optimal': self.cum_optimal,
@@ -150,7 +150,7 @@ class ExperimentNoAction(BaseExperiment):
 
 class DebugExperiment(BaseExperiment):
 
-  def run_step_maybe_log(self, t):
+  def run_step_maybe_log(self, timestep):
     # Evolve the bandit (potentially contextual) for one step and pick action
     observation = self.environment.get_observation()
     action = self.agent.pick_action(observation)
@@ -171,8 +171,8 @@ class DebugExperiment(BaseExperiment):
     # Advance the environment (used in nonstationary experiment)
     self.environment.advance(action, reward)
 
-    if (t + 1) % self.rec_freq == 0:
-      self.data_dict = {'t': (t + 1),
+    if (timestep + 1) % self.rec_freq == 0:
+      self.data_dict = {'t': (timestep + 1),
                         'action': action,
                         'cum_optimal': self.cum_optimal,
                         'expected_reward': expected_reward,
@@ -184,7 +184,7 @@ class DebugExperiment(BaseExperiment):
 ##############################################################################
 class ExperimentMultipleAgents(BaseExperiment):
  
-  def run_step_maybe_log(self, t):
+  def run_step_maybe_log(self, timestep):
 
     observation = self.environment.get_observation()
     actions = self.agent.pick_action(observation)
@@ -204,11 +204,11 @@ class ExperimentMultipleAgents(BaseExperiment):
     # Advance the environment (used in nonstationary experiment)
     self.environment.advance(actions, rewards)
 
-    if (t + 1) % self.rec_freq == 0:
+    if (timestep + 1) % self.rec_freq == 0:
       for i in range(len(actions)):
-        self.data_dict = {'t': (t + 1),
+        self.data_dict = {'t': (timestep + 1),
                           'agent_id': (i+1),
-                          'action_id': (t*self.agent.num_agents + i+1),
+                          'action_id': (timestep * self.agent.num_agents + i + 1),
                           'instant_regret': instant_regrets[i],
                           'cum_regret': self.cum_regrets[i],
                           'unique_id': self.unique_id}

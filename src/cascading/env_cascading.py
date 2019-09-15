@@ -27,11 +27,15 @@ class CascadingBandit(Environment):
     self.num_positions = num_positions
     self.a0 = a0
     self.b0 = b0
-    self.probs = np.array([np.random.beta(a0, b0) for a in range(num_items)])
+    # [arm,1]
+    self.probs = np.array([np.random.beta(a0, b0) for a in range(num_items)]) # 独立的beta采样num_items个元素
 
     # Compute the optimal reward by sorting the best num_positions elements
-    probs_ordered = np.sort(self.probs)[::-1]
-    self.optimal_reward = 1 - np.prod(1 - probs_ordered[:num_positions])
+    probs_ordered = np.sort(self.probs)[::-1] #降序
+    # 所有arm都未被点击的概率
+    all_failed_prob = np.prod(1 - probs_ordered[:num_positions])
+    # 至少有一个arm被点击
+    self.optimal_reward = 1 - all_failed_prob
 
     # Maintain a list of all actions that failed and succeeded
     self.round_failure = []
@@ -54,6 +58,7 @@ class CascadingBandit(Environment):
     """
     assert(len(action_list) == self.num_positions)
     action_probs = self.probs[action_list]
+    # 至少一个被点击的概率
     expected_reward = 1 - np.prod(1 - action_probs)
     return expected_reward
 
@@ -70,6 +75,7 @@ class CascadingBandit(Environment):
     self.round_success = []
 
     for action in action_list:
+      # 0-1分布中采样
       click = np.random.binomial(1, self.probs[action])
       if click == 1:
         self.round_success += [action]

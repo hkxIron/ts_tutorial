@@ -11,6 +11,7 @@ import numpy as np
 
 def random_argmax(vector):
   """Helper function to select argmax at random... not just first one."""
+  # 我的天,需要这样写么, vector.argmax()就可以了, 这代码写得晦涩
   index = np.random.choice(np.where(vector == vector.max())[0])
   return index
 

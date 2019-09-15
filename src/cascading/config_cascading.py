@@ -36,7 +36,7 @@ def get_config():
 
   agents = collections.OrderedDict(
       [('correct_ts',
-        functools.partial(_correct_ts_init, num_items, num_positions)),
+        functools.partial(_correct_ts_init, num_items, num_positions)), # 字符串到函数
        ('misspecified_ts',
         functools.partial(CascadingBanditTS, num_items, num_positions)),
        ('ucb1',

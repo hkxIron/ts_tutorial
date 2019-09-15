@@ -41,8 +41,10 @@ class GreedyNewsRecommendation(Agent):
     self.epsilon = epsilon
    
     # keeping current map estimates and Hessians for each news article
+    # [num_articles, dim]
     self.current_map_estimates = [self.theta_mean*np.ones(self.dim) 
                                             for _ in range(self.num_articles)]
+    # 每个article有一个Hessian
     self.current_Hessians = [np.diag([1/self.theta_std**2]*self.dim) 
                                             for _ in range(self.num_articles)]
   
@@ -54,7 +56,8 @@ class GreedyNewsRecommendation(Agent):
   def _compute_gradient_hessian_prior(self,x):
     '''computes the gradient and Hessian of the prior part of 
         negative log-likelihood at x.'''
-    Sinv = np.diag([1/self.theta_std**2]*self.dim) 
+    Sinv = np.diag([1/self.theta_std**2]*self.dim) # 对角矩阵
+    # mu:[dim,]
     mu = self.theta_mean*np.ones(self.dim)
     
     g = Sinv.dot(x - mu)
@@ -69,12 +72,12 @@ class GreedyNewsRecommendation(Agent):
     g,H = self._compute_gradient_hessian_prior(x)
     
     for i in range(self.num_plays[article]):
-      z = self.contexts[article][i]
+      z = self.contexts[article][i] # article feature
       y = self.rewards[article][i]
       pred = 1/(1+np.exp(-x.dot(z)))
       
-      g = g + (pred-y)*z
-      H = H + pred*(1-pred)*np.outer(z,z)
+      g = g + (pred-y)*z # 梯度更新
+      H = H + pred*(1-pred)*np.outer(z,z) # hessian矩阵更新, Hessian += P(1-P) * np.outer(xi, xi)
     
     return g,H
 
@@ -118,7 +121,7 @@ class GreedyNewsRecommendation(Agent):
     difference = self._evaluate_negative_log_posterior(x + step*dx, article) - \
     (current_function_value + self.back_track_alpha*step*g.dot(dx))
     while difference > 0:
-      step = self.back_track_beta * step
+      step = self.back_track_beta * step # 缩小步长再搜索
       difference = self._evaluate_negative_log_posterior(x + step*dx, article) - \
           (current_function_value + self.back_track_alpha*step*g.dot(dx))
 
@@ -167,8 +170,8 @@ class GreedyNewsRecommendation(Agent):
     map_rewards = []
     for i in range(self.num_articles):
       x = context[i]
-      theta = self.current_map_estimates[i]
-      map_rewards.append(1/(1+np.exp(-theta.dot(x))))
+      theta = self.current_map_estimates[i] # 所有估计的theta
+      map_rewards.append(1/(1+np.exp(-theta.dot(x)))) # reward = sigmoid(wx)
     return map_rewards
   
   def pick_action(self,context):
@@ -193,12 +196,12 @@ class LaplaceTSNewsRecommendation(GreedyNewsRecommendation):
   '''Laplace approximation to TS for news recommendation problem.'''
   def _sampled_rewards(self,context):
     sampled_rewards = []
-    for i in range(self.num_articles):
+    for i in range(self.num_articles): # 遍历每个action
       x = context[i]
-      mean = self.current_map_estimates[i]
-      cov = npla.inv(self.current_Hessians[i])
-      theta = np.random.multivariate_normal(mean, cov)
-      sampled_rewards.append(1/(1+np.exp(-theta.dot(x))))
+      mean = self.current_map_estimates[i] # 计算每个action的theta
+      cov = npla.inv(self.current_Hessians[i]) # 计算每个action的cov^(-1)
+      theta = np.random.multivariate_normal(mean, cov) # 采样theta
+      sampled_rewards.append(1/(1+np.exp(-theta.dot(x)))) # 重新估计每个action的回报
     return sampled_rewards
     
   def pick_action(self,context):
@@ -227,7 +230,7 @@ class LangevinTSNewsRecommendation(GreedyNewsRecommendation):
       gradient_scale = 1
     else:
       gradient_scale = self.num_plays[article]/self.batch_size
-      sample_indices = rnd.sample(range(self.num_plays[article]),self.batch_size)
+      sample_indices = rnd.sample(range(self.num_plays[article]), self.batch_size)
     
     g = np.zeros(self.dim)
     for i in sample_indices:
