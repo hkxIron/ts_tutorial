@@ -84,7 +84,7 @@ class TwoLayerNNEpsilonGreedy(Agent):
     # affine_out = X*W
     # input_actions:[batch, input_dim]
     # W1:[hidden, input_dim]
-    # 此处代码写得太晦涩了, affine = input_actions*(W1.T), 即 affine = inputa_actions@(W1.T)
+    # !!!此处代码写得太晦涩了, affine = input_actions*(W1.T), 即 affine = inputa_actions@(W1.T)
     affine_out = np.sum(input_actions[:, np.newaxis, :] * self.W1, axis=2)
     relu_out = np.maximum(self.leaky_coeff * affine_out, affine_out)
     out = np.sum(relu_out * self.W2, axis=1)
